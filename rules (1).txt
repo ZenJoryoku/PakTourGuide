@@ -1,0 +1,6 @@
+rules;
+dont change the front end that is already built
+only add what is asked
+dont change the color theme
+follow the structure
+dont duplicate the code but use the previous code
