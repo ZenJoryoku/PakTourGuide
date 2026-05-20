@@ -2840,7 +2840,7 @@
                 thingsToDo: "Trekking through pine forests, overnight camping under the Milky Way, and photography of the 'Killer Mountain' reflection in the lake."
             },
             {
-                id: 2, name: 'Gwadar', image: 'https://images.unsplash.com/photo-1678206015259-6c4698d42a8a?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8N3x8aGFtbWVyaGVhZC1zaGFwZWQlMjBwZW5pbnN1bGF8ZW58MHx8MHx8fDA%3D',
+                id: 2, name: 'Gwadar', image: 'https://images.unsplash.com/photo-1589556264800-08ae9e129a8c?w=1200&h=800&fit=crop',
                 tag: 'Coastal', subtitle: 'Rapidly developing port city', tags: ['Beach', 'Port'],
                 about: "A rapidly developing port city located on the southwestern coast of Balochistan. Gwadar is famous for its unique hammerhead-shaped peninsula, stunning golden beaches, and the turquoise waters of the Arabian Sea.",
                 bestTime: "September to March (to avoid the intense summer heat).",
@@ -3674,7 +3674,6 @@
             grid.innerHTML = filtered.map(g => {
                 const isOwnCard = isGuide && g.id === currentUid;
                 const isDimmed = isGuide && g.id !== currentUid;
-                const imagePosition = g.name.trim().toLowerCase() === 'babar azam' ? 'center 12%' : 'center';
                 const bookBlock = isGuide ? '' : `
                         <div class="flex gap-3">
                             <button class="btn-primary !w-full !rounded-xl !py-3" onclick="openBookingModal('${g.city}', ${g.price}, '${g.id}')">Book</button>
@@ -3685,7 +3684,7 @@
                 return `
                 <div class="card overflow-hidden ${isDimmed ? 'guide-card-dimmed' : ''}">
                     <div class="relative h-64 w-full bg-gray-200">
-                        <img src="${g.image}" alt="${g.name}" class="w-full h-full object-cover" style="object-position: ${imagePosition}; width: 100%; height: 100%; object-fit: cover;">
+                        <img src="${g.image}" alt="${g.name}" class="w-full h-full object-cover" style="object-position: center; width: 100%; height: 100%; object-fit: cover;">
                         <div class="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
                         <div class="absolute bottom-4 left-4 text-white"><h3 class="text-xl font-bold">${g.name}</h3><p class="text-sm">${g.city.toUpperCase()}</p></div>
                         ${isDimmed ? '<div class="absolute inset-0 flex items-center justify-center"><span class="bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full">🔒 Not Available</span></div>' : ''}
@@ -5058,16 +5057,15 @@
                 const total = diffDays * price;
                 const stayId = document.getElementById('stay-booking-id').value;
                 const stay = staysData.find(s => s.id === stayId);
-                const stayHostName = stay ? (stay.hostName || stay.guideName || 'Local Host') : 'Local Host';
 
                 const bookingData = {
                     userId: window.currentUser.uid,
                     userName: window.currentUser.name || 'Traveller',
                     stayId: stayId,
-                    hotelName: (stay && stay.hotelName) || 'Unknown Stay',
-                    city: (stay && stay.city) || 'Unknown',
-                    hostId: (stay && stay.hostId) || null,
-                    hostName: stayHostName,
+                    hotelName: stay ? stay.hotelName : 'Unknown',
+                    city: stay ? stay.city : 'Unknown',
+                    hostId: stay ? stay.hostId : null,
+                    hostName: stay ? (stay.hostName || stay.guideName) : null,
                     startDate: checkinVal,
                     endDate: checkoutVal,
                     travelers: 1,
