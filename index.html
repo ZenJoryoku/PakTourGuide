@@ -889,6 +889,26 @@
             color: #A78BFA !important;
         }
 
+        body.dark-mode #account #wallet-section > .relative > .relative.bg-white {
+            background-color: #1E1E1E !important;
+            border-color: #3F3F46 !important;
+            color: #F9FAFB !important;
+        }
+
+        body.dark-mode #account #wallet-section .text-gray-400 {
+            color: #A1A1AA !important;
+        }
+
+        body.dark-mode #account #wallet-section .text-gray-500 {
+            color: #D1D5DB !important;
+        }
+
+        body.dark-mode #account #account-stats-section .bg-white\/60,
+        body.dark-mode #account #account-stats-section .bg-white\/80 {
+            background-color: rgba(39, 39, 42, 0.9) !important;
+            color: #D1D5DB !important;
+        }
+
         /* ===== ROLE RESTRICTION ===== */
         .restricted-access {
             cursor: not-allowed !important;
@@ -2252,9 +2272,6 @@
                         <span class="flex-1 font-bold text-sm">My Travel List</span>
                         <span class="text-gray-400">→</span>
                     </div>
-                    <div id="payment-settings-item" class="list-item"><span class="mr-3">💳</span><span
-                            class="flex-1 font-bold text-sm">Payment
-                            Methods</span><span class="text-gray-400">→</span></div>
                 </div>
                 <button onclick="handleLogout()" class="btn-outline !w-full !py-3">Log Out</button>
             </div>
@@ -3165,6 +3182,10 @@
 
         // ===== PKR PAYMENT LOGIC =====
         let paymentSectionListener = null;
+        let savedPaymentMethod = null;
+        let savedPaymentMethods = {};
+        let paymentMethodLoaded = false;
+        let paymentMethodUserId = null;
         let _currentPaymentMethod = 'easypaisa';
         let _pendingPaymentBookingId = null;
         let _pendingPaymentAmount = 0;
@@ -3178,9 +3199,16 @@
             paymentSectionListener = window.onSnapshot(userRef, (doc) => {
                 if (doc.exists()) {
                     const data = doc.data();
+                    if (paymentMethodUserId !== window.currentUser.uid) {
+                        paymentMethodUserId = window.currentUser.uid;
+                        savedPaymentMethod = null;
+                        savedPaymentMethods = {};
+                        paymentMethodLoaded = false;
+                    }
                     window.currentUser.pkrBalance = data.pkrBalance || 0;
                     window.currentUser.bookmarks = data.bookmarks || [];
                     renderPaymentSection();
+                    if (window.currentUser.role !== 'guide') window.loadSavedPaymentMethod();
 
                     if (window.currentPage === 'home') renderDestinations(destinations, 'home-destinations');
                     if (window.currentPage === 'my-travel-list') renderTravelList();
@@ -3242,6 +3270,239 @@
                 `;
             }
         }
+
+        function paymentMethodDocRef(methodId) {
+            return window.doc(window.db, "users", window.currentUser.uid, "paymentMethods", methodId);
+        }
+
+        function maskPaymentValue(value) {
+            if (!value) return '';
+            const clean = String(value).replace(/\s+/g, '');
+            if (clean.length <= 7) return clean;
+            return `${clean.slice(0, 4)}-${'*'.repeat(Math.max(clean.length - 8, 3))}-${clean.slice(-4)}`;
+        }
+
+        function getPaymentLabel(method) {
+            if (!method) return 'Payment Method';
+            if (method.type === 'bank') return method.bankName || 'Bank Account';
+            return method.provider === 'jazzcash' ? 'JazzCash' : 'Easypaisa';
+        }
+
+        window.loadSavedPaymentMethod = async function () {
+            if (!window.currentUser || window.currentUser.role === 'guide') return;
+            try {
+                const snap = await window.getDocs(window.collection(window.db, "users", window.currentUser.uid, "paymentMethods"));
+                savedPaymentMethods = {};
+                snap.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const methodId = docSnap.id === 'default'
+                        ? (data.type === 'bank' ? 'bank' : (data.provider || 'easypaisa'))
+                        : docSnap.id;
+                    savedPaymentMethods[methodId] = { id: methodId, ...data };
+                });
+                savedPaymentMethod = savedPaymentMethods.easypaisa || savedPaymentMethods.jazzcash || savedPaymentMethods.bank || null;
+                paymentMethodLoaded = true;
+                renderPaymentSection();
+            } catch (err) {
+                console.error('Payment method load failed:', err);
+                paymentMethodLoaded = true;
+                renderPaymentSection();
+            }
+        };
+
+        renderPaymentSection = function () {
+            const container = document.getElementById('wallet-section');
+            if (!container) return;
+
+            const isGuide = window.currentUser.role === 'guide';
+            const balance = window.currentUser.pkrBalance || 0;
+
+            if (isGuide) {
+                container.innerHTML = `
+                    <div class="relative group overflow-hidden rounded-[2rem]">
+                        <div class="absolute -inset-1 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                        <div class="relative bg-white p-8 border border-green-500/20 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div class="flex items-center gap-6">
+                                <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center text-3xl text-white shadow-lg shadow-green-200">PKR</div>
+                                <div>
+                                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Your PKR Earnings</p>
+                                    <h3 class="text-4xl font-black text-gray-900 flex items-baseline gap-2">
+                                        ${balance.toLocaleString()}
+                                        <span class="text-sm font-bold text-green-600 uppercase tracking-tighter">PKR</span>
+                                    </h3>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="badge bg-green-100 text-green-700 font-bold px-4 py-2">Guide Earnings</span>
+                                <p class="text-[10px] text-gray-400 mt-2 font-bold uppercase tracking-widest">Withdrawal coming soon</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const savedList = ['easypaisa', 'jazzcash', 'bank'].map(id => savedPaymentMethods[id]).filter(Boolean);
+            const savedCount = savedList.length;
+            const savedCards = savedList.map(method => {
+                const label = getPaymentLabel(method);
+                const value = method.type === 'bank' ? maskPaymentValue(method.iban) : maskPaymentValue(method.mobile);
+                const detail = method.type === 'bank' ? (method.accountTitle || '') : 'Mobile Wallet';
+                return `
+                    <div class="rounded-3xl p-6 shadow-xl border border-primary-200" style="background: linear-gradient(135deg, #5B21B6, #7C3AED); color: #ffffff;">
+                        <p class="text-xs uppercase tracking-widest font-black mb-2" style="color: rgba(255,255,255,0.72);">Saved Payment Method</p>
+                        <h4 class="text-2xl font-black mb-1" style="color: #ffffff;">${label}</h4>
+                        <p class="font-bold" style="color: rgba(255,255,255,0.94);">${value}</p>
+                        <p class="text-sm mt-2" style="color: rgba(255,255,255,0.72);">${detail}</p>
+                        <div class="flex flex-wrap gap-3 mt-6">
+                            <button type="button" class="bg-white font-black rounded-xl px-5 py-3 hover:bg-primary-50 transition-all" style="color: #5B21B6;" onclick="window.editPaymentMethod('${method.id}')">Change</button>
+                            <button type="button" class="font-black rounded-xl px-5 py-3 transition-all" style="background: rgba(255,255,255,0.12); color: #ffffff; border: 1px solid rgba(255,255,255,0.35);" onclick="window.removePaymentMethod('${method.id}')">Remove</button>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="relative group overflow-hidden rounded-[2rem]">
+                    <div class="absolute -inset-1 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                    <div class="relative bg-white p-8 border border-purple-500/20 shadow-2xl">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                            <div class="flex items-center gap-6">
+                                <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center text-2xl text-white shadow-lg shadow-purple-200">PM</div>
+                                <div>
+                                    <p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Payment Methods</p>
+                                    <h3 class="text-lg font-black text-gray-900">Easypaisa · JazzCash · Bank Transfer</h3>
+                                    <p class="text-xs text-gray-500 mt-1">Save your preferred traveler payment details securely.</p>
+                                </div>
+                            </div>
+                            <span class="badge bg-primary-100 text-primary-700 font-bold px-4 py-2 self-start md:self-auto">${savedCount ? `${savedCount}/3 Linked` : 'Not Linked'}</span>
+                        </div>
+
+                        ${!paymentMethodLoaded ? `
+                            <div class="bg-primary-50/70 border border-primary-100 rounded-2xl p-5 text-sm font-bold text-primary-700">Loading saved payment method...</div>
+                        ` : `
+                            ${savedCards ? `<div class="grid md:grid-cols-2 gap-4 mb-6">${savedCards}</div>` : ''}
+                            <div class="grid gap-5">
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-2">Payment Type</label>
+                                    <select id="profile-payment-type" class="input-field" onchange="window.toggleProfilePaymentFields()">
+                                        <option value="easypaisa">Easypaisa</option>
+                                        <option value="jazzcash">JazzCash</option>
+                                        <option value="bank">Bank Account</option>
+                                    </select>
+                                </div>
+                                <div id="profile-wallet-fields">
+                                    <label id="profile-wallet-label" class="block text-sm font-bold text-gray-700 mb-2">Easypaisa Mobile Number</label>
+                                    <input type="tel" id="profile-wallet-mobile" class="input-field" placeholder="03XXXXXXXXX" maxlength="11">
+                                </div>
+                                <div id="profile-bank-fields" class="hidden grid gap-5">
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-2">Bank Name</label>
+                                        <input type="text" id="profile-bank-name" class="input-field" placeholder="Meezan Bank">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-2">Account Title</label>
+                                        <input type="text" id="profile-account-title" class="input-field" placeholder="Ali Khan">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-2">IBAN / Account Number</label>
+                                        <input type="text" id="profile-iban" class="input-field" placeholder="PK00XXXX0000000000000000">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn-primary !w-full !py-4" onclick="window.savePaymentMethod()">Save Payment Method</button>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        };
+
+        window.toggleProfilePaymentFields = function () {
+            const type = document.getElementById('profile-payment-type')?.value || 'easypaisa';
+            const walletFields = document.getElementById('profile-wallet-fields');
+            const bankFields = document.getElementById('profile-bank-fields');
+            const walletLabel = document.getElementById('profile-wallet-label');
+            if (walletFields) walletFields.classList.toggle('hidden', type === 'bank');
+            if (bankFields) bankFields.classList.toggle('hidden', type !== 'bank');
+            if (walletLabel) walletLabel.textContent = type === 'jazzcash' ? 'JazzCash Mobile Number' : 'Easypaisa Mobile Number';
+        };
+
+        window.savePaymentMethod = async function () {
+            if (!window.currentUser) return openLoginModal(true);
+            if (window.currentUser.role === 'guide') return showToast('Payment methods are for traveler accounts only.', 'info');
+
+            const type = document.getElementById('profile-payment-type')?.value || 'easypaisa';
+            const methodData = { type: type === 'bank' ? 'bank' : 'wallet', provider: type, updatedAt: window.serverTimestamp() };
+
+            if (type === 'bank') {
+                const bankName = document.getElementById('profile-bank-name').value.trim();
+                const accountTitle = document.getElementById('profile-account-title').value.trim();
+                const iban = document.getElementById('profile-iban').value.trim();
+                if (!bankName || !accountTitle || !iban) return showToast('Please complete all bank account fields.', 'error');
+                methodData.bankName = bankName;
+                methodData.accountTitle = accountTitle;
+                methodData.iban = iban;
+            } else {
+                const mobile = document.getElementById('profile-wallet-mobile').value.trim();
+                if (!/^03[0-9]{9}$/.test(mobile)) return showToast('Enter a valid 11 digit wallet number, e.g. 03XXXXXXXXX.', 'error');
+                methodData.mobile = mobile;
+            }
+
+            try {
+                const methodId = type === 'bank' ? 'bank' : type;
+                await window.setDoc(paymentMethodDocRef(methodId), methodData, { merge: true });
+                savedPaymentMethods[methodId] = { id: methodId, ...methodData, updatedAt: Date.now() };
+                savedPaymentMethod = savedPaymentMethods.easypaisa || savedPaymentMethods.jazzcash || savedPaymentMethods.bank || null;
+                paymentMethodLoaded = true;
+                renderPaymentSection();
+                showToast('Payment method saved successfully.', 'success');
+            } catch (err) {
+                console.error('Payment method save failed:', err);
+                showToast('Could not save payment method: ' + err.message, 'error');
+            }
+        };
+
+        window.editPaymentMethod = function (methodId) {
+            const method = savedPaymentMethods[methodId];
+            if (!method) return;
+            paymentMethodLoaded = true;
+            renderPaymentSection();
+            setTimeout(() => {
+                const typeEl = document.getElementById('profile-payment-type');
+                if (!typeEl || !method) return;
+                typeEl.value = methodId;
+                window.toggleProfilePaymentFields();
+                if (method.type === 'bank') {
+                    document.getElementById('profile-bank-name').value = method.bankName || '';
+                    document.getElementById('profile-account-title').value = method.accountTitle || '';
+                    document.getElementById('profile-iban').value = method.iban || '';
+                } else {
+                    document.getElementById('profile-wallet-mobile').value = method.mobile || '';
+                }
+            }, 0);
+        };
+
+        window.removePaymentMethod = async function (methodId) {
+            if (!window.currentUser) return;
+            try {
+                await window.deleteDoc(paymentMethodDocRef(methodId));
+                delete savedPaymentMethods[methodId];
+                savedPaymentMethod = savedPaymentMethods.easypaisa || savedPaymentMethods.jazzcash || savedPaymentMethods.bank || null;
+                paymentMethodLoaded = true;
+                renderPaymentSection();
+                showToast('Payment method removed.', 'success');
+            } catch (err) {
+                console.error('Payment method remove failed:', err);
+                showToast('Could not remove payment method: ' + err.message, 'error');
+            }
+        };
+
+        window.focusPaymentMethods = function () {
+            const section = document.getElementById('wallet-section');
+            if (!section) return;
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            section.classList.add('ring-4', 'ring-primary-200', 'rounded-[2rem]');
+            setTimeout(() => section.classList.remove('ring-4', 'ring-primary-200', 'rounded-[2rem]'), 1400);
+        };
 
         window.openPaymentModal = function (bookingId, total, guideId) {
             _pendingPaymentBookingId = bookingId;
